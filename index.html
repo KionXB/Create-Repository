@@ -1,0 +1,733 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Café Rocha | Café Especial do Cerrado Mineiro</title>
+  <meta name="description" content="Café especial de Origem Controlada do Cerrado Mineiro (Patos de Minas - MG). Grãos selecionados, torra fresca e fornecimento confiável para cafeterias e apreciadores." />
+
+  <!-- Fontes Google -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Plus Jakarta Sans"', 'sans-serif'],
+          },
+          colors: {
+            rocha: {
+              brown: '#2a1d15',
+              dark: '#1c291c',
+              gold: '#8b6f52',
+              cream: '#f7f4ee',
+              card: '#ebd9c4',
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- React 18 & Babel para execução no navegador -->
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <style>
+    body {
+      background-color: #f7f4ee;
+      color: #261c14;
+      font-family: 'Plus Jakarta Sans', sans-serif;
+    }
+    html {
+      scroll-behavior: smooth;
+    }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect } = React;
+
+    // Dados do Café Especial
+    const PRODUCT = {
+      id: 'cerrado-mineiro-especial',
+      name: 'Café Especial',
+      tag: '86 PONTOS SCA',
+      subtitle: 'Catuaí 2SL • Torra Média Clara • Peneira 16-18 • Cerrado Mineiro',
+      variety: 'Catuaí 2SL',
+      scaScore: 86,
+      screen: 'Peneira 16-18',
+      altitude: '1.150m',
+      origin: 'Cerrado Mineiro - MG (Denominação de Origem)',
+      process: 'Natural em Terreiro Suspenso',
+      roastLevel: 'Torra Média Clara',
+      description: 'Café especial da variedade Catuaí 2SL, com grãos selecionados em peneira 16-18 e torra média clara. Apresenta doçura elevada, corpo equilibrado e pontuação 86 SCA.',
+      price500g: 80.00,
+      price1kg: 140.00,
+      image: 'caixa.jpg'
+    };
+
+    function App() {
+      const [cart, setCart] = useState(() => {
+        try {
+          const saved = localStorage.getItem('cafe_rocha_cart');
+          return saved ? JSON.parse(saved) : [];
+        } catch {
+          return [];
+        }
+      });
+
+      const [selectedWeight, setSelectedWeight] = useState('500g');
+      const [isCartOpen, setIsCartOpen] = useState(false);
+      const [isShippingOpen, setIsShippingOpen] = useState(false);
+      const [isModalOpen, setIsModalOpen] = useState(false);
+      const [toastMessage, setToastMessage] = useState(null);
+      const [isAdded, setIsAdded] = useState(false);
+
+      // Frete
+      const [cep, setCep] = useState('');
+      const [shippingSelected, setShippingSelected] = useState(null);
+      const [shippingError, setShippingError] = useState('');
+
+      useEffect(() => {
+        localStorage.setItem('cafe_rocha_cart', JSON.stringify(cart));
+      }, [cart]);
+
+      useEffect(() => {
+        if (window.lucide) window.lucide.createIcons();
+      });
+
+      const showToast = (msg) => {
+        setToastMessage(msg);
+        setTimeout(() => setToastMessage(null), 3000);
+      };
+
+      const handleAddToCart = (weight) => {
+        const unitPrice = weight === '500g' ? PRODUCT.price500g : PRODUCT.price1kg;
+        const itemId = `${PRODUCT.id}-${weight}`;
+
+        setCart(prev => {
+          const exist = prev.find(i => i.id === itemId);
+          if (exist) {
+            return prev.map(i => i.id === itemId ? { ...i, quantity: i.quantity + 1 } : i);
+          }
+          return [...prev, { id: itemId, product: PRODUCT, weight, quantity: 1, unitPrice }];
+        });
+
+        setIsAdded(true);
+        setTimeout(() => setIsAdded(false), 1800);
+        showToast(`Café Especial (${weight}) adicionado à sua sacola!`);
+      };
+
+      const handleUpdateQty = (id, delta) => {
+        setCart(prev => prev.map(item => {
+          if (item.id === id) {
+            const newQty = item.quantity + delta;
+            return newQty > 0 ? { ...item, quantity: newQty } : null;
+          }
+          return item;
+        }).filter(Boolean));
+      };
+
+      const handleSimulateShipping = (e) => {
+        e.preventDefault();
+        const cleanCep = cep.replace(/\D/g, '');
+        if (cleanCep.length !== 8) {
+          setShippingError('Digite um CEP válido com 8 números');
+          return;
+        }
+        setShippingError('');
+        setShippingSelected({ carrier: 'Transportadora Especial / Sedex', price: 24.90, days: '2 a 5 dias úteis' });
+      };
+
+      const totalItems = cart.reduce((sum, item) => sum + item.quantity, 0);
+      const subtotal = cart.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0);
+      const shippingValue = shippingSelected ? shippingSelected.price : 0;
+      const totalCart = subtotal + shippingValue;
+
+      const whatsappCheckoutUrl = `https://wa.me/5531997692474?text=${encodeURIComponent(
+        `Olá, Café Rocha! Gostaria de finalizar meu pedido pelo site:\n\n` +
+        cart.map(i => `• ${i.product.name} (${i.weight}) x${i.quantity} - R$ ${(i.unitPrice * i.quantity).toFixed(2)}`).join('\n') +
+        `\n\nSubtotal: R$ ${subtotal.toFixed(2)}` +
+        (shippingSelected ? `\nFrete: R$ ${shippingSelected.price.toFixed(2)} (${shippingSelected.carrier})` : '') +
+        `\nTotal: R$ ${totalCart.toFixed(2)}`
+      )}`;
+
+      return (
+        <div className="min-h-screen flex flex-col">
+          {/* TOPO / NAVBAR */}
+          <header className="sticky top-0 z-40 bg-[#f7f4ee]/95 backdrop-blur-md border-b border-[#362519]/10">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
+              <a href="#nossos-cafes" className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-[#2a1d15] text-[#f7f4ee] flex items-center justify-center font-black text-lg">
+                  R
+                </div>
+                <div>
+                  <span className="text-xl font-extrabold tracking-tight text-[#2a1d15] block leading-none">Café Rocha</span>
+                  <span className="text-[10px] uppercase font-bold tracking-widest text-[#8b6f52]">Cerrado Mineiro</span>
+                </div>
+              </a>
+
+              <nav className="hidden lg:flex items-center gap-7 text-sm font-semibold text-[#362519]">
+                <a href="#nossos-cafes" className="hover:text-[#8b6f52] transition-colors">Nosso Café</a>
+                <a href="#nossa-origem" className="hover:text-[#8b6f52] transition-colors">Nossa Origem</a>
+                <a href="#para-cafeterias" className="hover:text-[#8b6f52] transition-colors">Para Cafeterias</a>
+                <a href="#sustentabilidade" className="hover:text-[#8b6f52] transition-colors">Sustentabilidade</a>
+                <a href="#sobre" className="hover:text-[#8b6f52] transition-colors">Sobre nós</a>
+                <a href="#contatos" className="hover:text-[#8b6f52] transition-colors">Contatos</a>
+              </nav>
+
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => setIsShippingOpen(true)}
+                  className="hidden sm:inline-flex items-center gap-1.5 border border-[#362519]/25 hover:border-[#362519] text-[#362519] px-4 py-2 rounded-full text-xs font-bold transition-all"
+                >
+                  <i data-lucide="truck" className="w-3.5 h-3.5 text-[#8b6f52]"></i>
+                  <span>Simular Frete</span>
+                </button>
+
+                <button
+                  onClick={() => setIsCartOpen(true)}
+                  className="w-10 h-10 rounded-full flex items-center justify-center text-[#362519] hover:bg-[#ede3d4] transition-colors relative"
+                  title="Ver sacola"
+                >
+                  <i data-lucide="shopping-bag" className="w-5 h-5"></i>
+                  {totalItems > 0 && (
+                    <span className="absolute -top-0.5 -right-0.5 bg-[#2a1d15] text-white text-[10px] font-black w-4.5 h-4.5 rounded-full flex items-center justify-center">
+                      {totalItems}
+                    </span>
+                  )}
+                </button>
+
+                <button
+                  onClick={() => totalItems > 0 ? setIsCartOpen(true) : document.getElementById('nossos-cafes').scrollIntoView({ behavior: 'smooth' })}
+                  className="hidden sm:inline-flex items-center gap-2 bg-[#2a1d15] hover:bg-[#1c291c] text-white px-5 py-2.5 rounded-full text-xs font-bold transition-all shadow-sm"
+                >
+                  <span>{totalItems > 0 ? 'Ver pedido' : 'Fazer pedido'}</span>
+                  <i data-lucide="arrow-right" className="w-3.5 h-3.5"></i>
+                </button>
+              </div>
+            </div>
+          </header>
+
+          {/* HERO SECTION / PRODUTO PRINCIPAL */}
+          <section id="nossos-cafes" className="pt-10 pb-16 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto w-full">
+            <div className="text-center max-w-3xl mx-auto mb-12">
+              <span className="text-[11px] sm:text-xs font-black uppercase tracking-[0.25em] text-[#8b6f52] block mb-3">
+                CAFÉ ESPECIAL DO CERRADO MINEIRO
+              </span>
+              <h1 className="text-3xl sm:text-5xl lg:text-[3.2rem] font-extrabold text-[#2a1d15] tracking-tight leading-[1.15] mb-4">
+                Do Cerrado Mineiro para grandes experiências.
+              </h1>
+              <p className="text-sm sm:text-base text-[#6e6761] font-medium max-w-xl mx-auto">
+                Café especial de Origem Controlada
+              </p>
+            </div>
+
+            {/* CARD DO PRODUTO */}
+            <div className="max-w-5xl mx-auto bg-[#ebd9c4] rounded-[2.5rem] p-7 sm:p-12 shadow-lg border border-[#ddc8b1]">
+              <div className="flex items-center justify-between mb-6">
+                <span className="text-[11px] uppercase tracking-widest font-black text-[#5a3a22] bg-[#dfcabb]/80 px-3.5 py-1 rounded-full">
+                  {PRODUCT.tag}
+                </span>
+                <span className="text-xs font-bold text-[#5a3a22]">{PRODUCT.origin}</span>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
+                <div className="lg:col-span-7 space-y-5">
+                  <h2 className="text-3xl sm:text-4xl font-extrabold text-[#2a1d15]">{PRODUCT.name}</h2>
+                  <p className="text-xs sm:text-sm font-semibold text-[#5a3a22]">{PRODUCT.subtitle}</p>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 py-1">
+                    <div className="bg-[#dfcabb]/60 p-2.5 rounded-xl text-center">
+                      <span className="text-[10px] uppercase font-bold text-[#6d4c32] block">GRÃO</span>
+                      <span className="text-xs sm:text-sm font-black text-[#2a1d15] block">{PRODUCT.variety}</span>
+                    </div>
+                    <div className="bg-[#dfcabb]/60 p-2.5 rounded-xl text-center">
+                      <span className="text-[10px] uppercase font-bold text-[#6d4c32] block">TORRA</span>
+                      <span className="text-xs sm:text-sm font-black text-[#2a1d15] block">{PRODUCT.roastLevel}</span>
+                    </div>
+                    <div className="bg-[#dfcabb]/60 p-2.5 rounded-xl text-center">
+                      <span className="text-[10px] uppercase font-bold text-[#6d4c32] block">PENEIRA</span>
+                      <span className="text-xs sm:text-sm font-black text-[#2a1d15] block">{PRODUCT.screen}</span>
+                    </div>
+                    <div className="bg-[#dfcabb]/60 p-2.5 rounded-xl text-center">
+                      <span className="text-[10px] uppercase font-bold text-[#6d4c32] block">PONTUAÇÃO</span>
+                      <span className="text-xs sm:text-sm font-black text-[#2a1d15] block">{PRODUCT.scaScore} SCA</span>
+                    </div>
+                  </div>
+
+                  <div className="pt-2 space-y-3">
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-xs font-bold text-[#5a3a22]">Valor selecionado:</span>
+                      <span className="text-3xl sm:text-4xl font-black text-[#2a1d15]">
+                        R$ {(selectedWeight === '500g' ? PRODUCT.price500g : PRODUCT.price1kg).toFixed(2).replace('.', ',')}
+                      </span>
+                      <span className="text-xs font-bold text-[#5a3a22]">/ {selectedWeight === '1kg' ? '1 Quilo (1kg)' : '500g'}</span>
+                    </div>
+
+                    <div className="flex gap-2.5">
+                      <button
+                        onClick={() => setSelectedWeight('500g')}
+                        className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-extrabold transition-all ${
+                          selectedWeight === '500g' ? 'bg-[#2a1d15] text-white' : 'bg-white/80 text-[#5a3a22] hover:bg-white'
+                        }`}
+                      >
+                        500 gramas — R$ 80
+                      </button>
+                      <button
+                        onClick={() => setSelectedWeight('1kg')}
+                        className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-extrabold transition-all ${
+                          selectedWeight === '1kg' ? 'bg-[#2a1d15] text-white' : 'bg-white/80 text-[#5a3a22] hover:bg-white'
+                        }`}
+                      >
+                        1 Quilo (1kg) — R$ 140
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="pt-3 flex flex-wrap items-center gap-3">
+                    <button
+                      onClick={() => setIsModalOpen(true)}
+                      className="inline-flex items-center gap-2 bg-[#2a1d15] hover:bg-[#1a120c] text-white px-6 py-3.5 rounded-full text-xs sm:text-sm font-bold transition-all shadow-md"
+                    >
+                      <span>Conhecer detalhes do café</span>
+                      <i data-lucide="arrow-right" className="w-4 h-4"></i>
+                    </button>
+
+                    <button
+                      onClick={() => handleAddToCart(selectedWeight)}
+                      disabled={isAdded}
+                      className={`inline-flex items-center gap-2 px-6 py-3.5 rounded-full font-bold text-xs sm:text-sm transition-all shadow-sm ${
+                        isAdded ? 'bg-emerald-600 text-white' : 'bg-white text-[#2a1d15] hover:bg-[#2a1d15] hover:text-white'
+                      }`}
+                    >
+                      {isAdded ? (
+                        <>
+                          <i data-lucide="check" className="w-4 h-4"></i>
+                          <span>Adicionado à sacola!</span>
+                        </>
+                      ) : (
+                        <>
+                          <i data-lucide="shopping-bag" className="w-4 h-4"></i>
+                          <span>Adicionar à sacola</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="lg:col-span-5 flex justify-center">
+                  <div className="bg-white p-4 rounded-[2.2rem] shadow-xl border border-[#ddc8b1] max-w-sm w-full">
+                    <img src={PRODUCT.image} alt={PRODUCT.name} className="w-full h-80 object-cover rounded-[1.7rem]" />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          {/* 4 PILARES / TRUST BAR */}
+          <section className="py-12 border-y border-[#362519]/10 bg-[#faf8f5]/60">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
+                <div className="flex items-start gap-4">
+                  <div className="w-12 h-12 rounded-2xl bg-[#ede3d4] flex items-center justify-center shrink-0 text-[#362519]">
+                    <i data-lucide="compass" className="w-6 h-6"></i>
+                  </div>
+                  <div>
+                    <h3 className="font-extrabold text-[#2a1d15] text-sm">Origem rastreável</h3>
+                    <p className="text-xs text-[#6e6761] mt-1">Transparência do campo à xícara.</p>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-4">
+                  <div className="w-12 h-12 rounded-2xl bg-[#ede3d4] flex items-center justify-center shrink-0 text-[#362519]">
+                    <i data-lucide="sparkles" className="w-6 h-6"></i>
+                  </div>
+                  <div>
+                    <h3 className="font-extrabold text-[#2a1d15] text-sm">Qualidade consistente</h3>
+                    <p className="text-xs text-[#6e6761] mt-1">Lotes selecionados e perfil sensorial único.</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-2xl bg-[#ede3d4] flex items-center justify-center shrink-0 text-[#362519]">
+                    <i data-lucide="truck" className="w-6 h-6"></i>
+                  </div>
+                  <div>
+                    <h3 className="font-extrabold text-[#2a1d15] text-sm">Fornecimento confiável</h3>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-4">
+                  <div className="w-12 h-12 rounded-2xl bg-[#ede3d4] flex items-center justify-center shrink-0 text-[#362519]">
+                    <i data-lucide="handshake" className="w-6 h-6"></i>
+                  </div>
+                  <div>
+                    <h3 className="font-extrabold text-[#2a1d15] text-sm">Parceria com produtores</h3>
+                    <p className="text-xs text-[#6e6761] mt-1">Valorização de quem faz o café acontecer.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          {/* NOSSA ORIGEM */}
+          <section id="nossa-origem" className="py-20 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-center">
+              <div className="lg:col-span-7 space-y-5">
+                <span className="text-[11px] font-black uppercase tracking-[0.2em] text-[#8b6f52] block">NOSSA ORIGEM</span>
+                <h2 className="text-3xl sm:text-4xl font-extrabold text-[#2a1d15]">Cerrado Mineiro. Qualidade que nasce da nossa terra.</h2>
+                <div className="space-y-4 text-sm sm:text-base text-[#554b43] leading-relaxed">
+                  <p>O Café Rocha nasceu com o propósito de conectar a tradição e a excelência cafeeira do Cerrado Mineiro a consumidores e estabelecimentos de todo o Brasil, valorizando a origem, a qualidade e a autenticidade de cada café.</p>
+                  <p>Com raízes na região de Patos de Minas, reconhecida por sua relevância na produção de cafés especiais, a marca surge da oportunidade de aproximar produtores e mercados, ampliando o acesso a cafés de procedência e identidade.</p>
+                  <p>Mais do que comercializar cafés especiais, buscamos construir relações de confiança, valorizar a cadeia produtiva e proporcionar uma experiência que represente a riqueza e a tradição do café brasileiro.</p>
+                </div>
+              </div>
+              <div className="lg:col-span-5">
+                <img src="https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?w=800&auto=format&fit=crop&q=80" alt="Origem Cerrado Mineiro" className="rounded-3xl shadow-lg w-full h-[400px] object-cover border border-stone-200" />
+              </div>
+            </div>
+          </section>
+
+          {/* PARA CAFETERIAS */}
+          <section id="para-cafeterias" className="py-20 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-center">
+              <div className="lg:col-span-5">
+                <img src="https://images.unsplash.com/photo-1511920170033-f8396924c348?w=800&auto=format&fit=crop&q=80" alt="Cafeterias" className="rounded-3xl shadow-lg w-full h-[400px] object-cover border border-stone-200" />
+              </div>
+              <div className="lg:col-span-7 space-y-5">
+                <span className="text-[11px] font-black uppercase tracking-[0.2em] text-[#8b6f52] block">B2B & CAFETERIAS</span>
+                <h2 className="text-3xl sm:text-4xl font-extrabold text-[#2a1d15]">Cafés que elevam a experiência dos seus clientes.</h2>
+                <div className="space-y-3.5 text-sm sm:text-base text-[#554b43] leading-relaxed">
+                  <p className="font-bold text-[#2a1d15]">Para Cafeterias, um bom café valoriza o seu negócio.</p>
+                  <p>Sabemos que, para uma cafeteria, cada detalhe influencia a experiência do cliente. A escolha do café é uma parte essencial desse processo, contribuindo para a identidade do estabelecimento e para a percepção de valor dos produtos oferecidos.</p>
+                  <p>Pensando nisso, o Café Rocha busca atender cafeterias e estabelecimentos de todo o Brasil com uma proposta comercial que considera as necessidades de cada negócio.</p>
+                </div>
+                <div className="pt-2">
+                  <a
+                    href="https://wa.me/5531997692474?text=Olá!%20Sou%20de%20uma%20cafeteria%20e%20gostaria%20de%20saber%20sobre%20parcerias%20com%20o%20Café%20Rocha."
+                    target="_blank"
+                    className="inline-flex items-center gap-2 bg-[#2a1d15] hover:bg-[#1a120c] text-white px-7 py-3.5 rounded-full text-xs font-bold transition-all shadow-md"
+                  >
+                    <span>Quero ser parceiro</span>
+                    <i data-lucide="arrow-right" className="w-4 h-4"></i>
+                  </a>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          {/* SUSTENTABILIDADE */}
+          <section id="sustentabilidade" className="py-20 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
+            <div className="text-center max-w-3xl mx-auto mb-14">
+              <span className="text-[11px] font-black uppercase tracking-[0.2em] text-[#8b6f52] block mb-2">COMPROMISSO & FUTURO</span>
+              <h2 className="text-3xl sm:text-4xl font-extrabold text-[#2a1d15]">Sustentabilidade que se prova na prática.</h2>
+              <p className="text-sm text-[#6e6761] mt-3">Um café verdadeiramente especial nasce do respeito à terra e às pessoas.</p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-7">
+              <div className="bg-white p-7 rounded-[2rem] border border-stone-200 shadow-sm">
+                <div className="w-12 h-12 rounded-2xl bg-[#ede3d4] flex items-center justify-center text-[#2a1d15] mb-5">
+                  <i data-lucide="heart-handshake" className="w-6 h-6"></i>
+                </div>
+                <h3 className="text-lg font-extrabold text-[#2a1d15] mb-2">Comércio Justo & Direto</h3>
+                <p className="text-xs sm:text-sm text-[#6e6761] leading-relaxed">Compramos diretamente de produtores em Patos de Minas - MG, garantindo remuneração justa e valorização da colheita à secagem.</p>
+              </div>
+
+              <div className="bg-white p-7 rounded-[2rem] border border-stone-200 shadow-sm">
+                <div className="w-12 h-12 rounded-2xl bg-[#ede3d4] flex items-center justify-center text-[#2a1d15] mb-5">
+                  <i data-lucide="leaf" className="w-6 h-6"></i>
+                </div>
+                <h3 className="text-lg font-extrabold text-[#2a1d15] mb-2">Cuidado com o Solo e Bioma</h3>
+                <p className="text-xs sm:text-sm text-[#6e6761] leading-relaxed">Privilegiamos lavouras com manejo sustentável, preservação de matas de galeria e nascentes do Cerrado Mineiro.</p>
+              </div>
+
+              <div className="bg-white p-7 rounded-[2rem] border border-stone-200 shadow-sm">
+                <div className="w-12 h-12 rounded-2xl bg-[#ede3d4] flex items-center justify-center text-[#2a1d15] mb-5">
+                  <i data-lucide="recycle" className="w-6 h-6"></i>
+                </div>
+                <h3 className="text-lg font-extrabold text-[#2a1d15] mb-2">Embalagens & Preservação</h3>
+                <p className="text-xs sm:text-sm text-[#6e6761] leading-relaxed">Embalagens com válvula de desgaseificação que conservam os óleos e aromas nobres da torra fresca por muito mais tempo.</p>
+              </div>
+            </div>
+          </section>
+
+          {/* CONTATOS & ATENDIMENTO */}
+          <section id="contatos" className="py-20 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
+            <div className="text-center max-w-2xl mx-auto mb-12">
+              <span className="text-[11px] uppercase font-extrabold tracking-widest text-[#8b6f52] block mb-2">ATENDIMENTO DIRETO</span>
+              <h2 className="text-3xl sm:text-4xl font-extrabold text-[#2a1d15]">Contatos & Atendimento</h2>
+              <div className="w-12 h-1 bg-[#8b6f52] mx-auto mt-3 mb-4 rounded-full"></div>
+              <p className="text-[#6e6761] text-xs sm:text-sm leading-relaxed">Tem dúvidas sobre os cafés ou quer fazer pedidos para sua cafeteria? Fale com o Café Rocha:</p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-3xl mx-auto">
+              <a
+                href="https://wa.me/5531997692474?text=Olá,%20Café%20Rocha!%20Gostaria%20de%20tirar%20uma%20dúvida."
+                target="_blank"
+                className="bg-white rounded-3xl p-7 border border-stone-200 shadow-sm hover:shadow-md transition-all flex items-center gap-4"
+              >
+                <div className="w-14 h-14 rounded-2xl bg-[#dcfce7] flex items-center justify-center shrink-0">
+                  <i data-lucide="message-circle" className="w-7 h-7 text-[#16a34a]"></i>
+                </div>
+                <div>
+                  <span className="text-[10px] uppercase font-bold text-stone-500 tracking-wider block">WHATSAPP DIRETO</span>
+                  <h3 className="text-base sm:text-lg font-bold text-[#2a1d15]">Café Rocha</h3>
+                  <p className="text-xs sm:text-sm font-semibold text-[#8b6f52] mt-0.5">(31) 99769–2474</p>
+                </div>
+              </a>
+
+              <div className="bg-white rounded-3xl p-7 border border-stone-200 shadow-sm flex items-center gap-4">
+                <div className="w-14 h-14 rounded-2xl bg-[#fef3c7] flex items-center justify-center shrink-0">
+                  <i data-lucide="mail" className="w-7 h-7 text-[#b45309]"></i>
+                </div>
+                <div>
+                  <span className="text-[10px] uppercase font-bold text-stone-500 tracking-wider block">CANAL DE E-MAIL</span>
+                  <h3 className="text-base sm:text-lg font-bold text-[#2a1d15]">Café Rocha</h3>
+                  <p className="text-xs sm:text-sm font-semibold text-[#8b6f52] mt-0.5">caferochadf@gmail.com</p>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          {/* RODAPÉ */}
+          <footer className="bg-[#2a1d15] text-white pt-16 pb-12 px-4 sm:px-6 lg:px-8 border-t border-[#3d2a1f]">
+            <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-12 gap-10 pb-12 border-b border-white/10">
+              <div className="md:col-span-5 space-y-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-white text-[#2a1d15] flex items-center justify-center font-black text-lg">R</div>
+                  <span className="text-xl font-extrabold">Café Rocha</span>
+                </div>
+                <p className="text-xs sm:text-sm text-stone-300 max-w-sm">
+                  Cafés especiais colhidos no Cerrado Mineiro, com procedência garantida e transporte dedicado para apreciadores e cafeterias.
+                </p>
+                <div className="pt-2 text-xs text-stone-300 space-y-1.5">
+                  <p>Café Rocha: (31) 99769-2474</p>
+                  <p>Café Rocha: caferochadf@gmail.com</p>
+                </div>
+              </div>
+
+              <div className="md:col-span-3 space-y-3">
+                <h4 className="text-xs font-black uppercase tracking-widest text-[#c1a37f]">Navegação</h4>
+                <ul className="space-y-2 text-xs text-stone-300">
+                  <li><a href="#nossos-cafes" className="hover:text-white">Nosso Café Especial</a></li>
+                  <li><a href="#nossa-origem" className="hover:text-white">Nossa Origem (Patos de Minas)</a></li>
+                  <li><a href="#para-cafeterias" className="hover:text-white">Para Cafeterias (B2B)</a></li>
+                  <li><a href="#contatos" className="hover:text-white">Contatos</a></li>
+                </ul>
+              </div>
+
+              <div className="md:col-span-4 space-y-3">
+                <h4 className="text-xs font-black uppercase tracking-widest text-[#c1a37f]">Origem & Procedência</h4>
+                <p className="text-xs text-stone-300 leading-relaxed">
+                  Região do Cerrado Mineiro. Patos de Minas, MG - Brasil. Direto da origem para cafeterias e lares de todo o país.
+                </p>
+              </div>
+            </div>
+
+            <div className="max-w-7xl mx-auto pt-8 flex flex-col sm:flex-row items-center justify-between text-[11px] text-stone-400 gap-3">
+              <p>© {new Date().getFullYear()} Café Rocha. Todos os direitos reservados.</p>
+              <p>Feito com dedicação do Cerrado Mineiro para todo o Brasil</p>
+            </div>
+          </footer>
+
+          {/* MODAL DETALHES DO PRODUTO */}
+          {isModalOpen && (
+            <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+              <div className="bg-white rounded-3xl max-w-2xl w-full p-6 sm:p-8 relative max-h-[90vh] overflow-y-auto">
+                <button onClick={() => setIsModalOpen(false)} className="absolute top-5 right-5 text-stone-400 hover:text-stone-700">
+                  <i data-lucide="x" className="w-6 h-6"></i>
+                </button>
+                <div className="space-y-4">
+                  <span className="text-[11px] font-black uppercase tracking-widest text-[#8b6f52] bg-[#f7f5f0] px-3 py-1 rounded-full">
+                    FICHA TÉCNICA
+                  </span>
+                  <h3 className="text-2xl sm:text-3xl font-extrabold text-[#2a1d15]">{PRODUCT.name}</h3>
+                  <p className="text-sm text-[#554b43]">{PRODUCT.description}</p>
+
+                  <div className="grid grid-cols-2 gap-3 pt-3">
+                    <div className="bg-stone-50 p-3 rounded-xl border border-stone-100">
+                      <span className="text-[10px] text-stone-500 font-bold block">VARIEDADE</span>
+                      <span className="text-xs font-extrabold text-[#2a1d15]">{PRODUCT.variety}</span>
+                    </div>
+                    <div className="bg-stone-50 p-3 rounded-xl border border-stone-100">
+                      <span className="text-[10px] text-stone-500 font-bold block">ALTITUDE</span>
+                      <span className="text-xs font-extrabold text-[#2a1d15]">{PRODUCT.altitude}</span>
+                    </div>
+                    <div className="bg-stone-50 p-3 rounded-xl border border-stone-100">
+                      <span className="text-[10px] text-stone-500 font-bold block">PROCESSO</span>
+                      <span className="text-xs font-extrabold text-[#2a1d15]">{PRODUCT.process}</span>
+                    </div>
+                    <div className="bg-stone-50 p-3 rounded-xl border border-stone-100">
+                      <span className="text-[10px] text-stone-500 font-bold block">TORRA</span>
+                      <span className="text-xs font-extrabold text-[#2a1d15]">{PRODUCT.roastLevel}</span>
+                    </div>
+                  </div>
+
+                  <div className="pt-4 flex gap-3">
+                    <button
+                      onClick={() => {
+                        handleAddToCart('500g');
+                        setIsModalOpen(false);
+                      }}
+                      className="flex-1 bg-[#2a1d15] hover:bg-stone-800 text-white py-3 rounded-xl text-xs font-bold"
+                    >
+                      Adicionar 500g (R$ 80)
+                    </button>
+                    <button
+                      onClick={() => {
+                        handleAddToCart('1kg');
+                        setIsModalOpen(false);
+                      }}
+                      className="flex-1 bg-[#8b6f52] hover:bg-[#6e563e] text-white py-3 rounded-xl text-xs font-bold"
+                    >
+                      Adicionar 1kg (R$ 140)
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* SACOLA / DRAWER DO CARRINHO */}
+          {isCartOpen && (
+            <div className="fixed inset-0 z-50 flex justify-end">
+              <div className="fixed inset-0 bg-black/50 backdrop-blur-xs" onClick={() => setIsCartOpen(false)}></div>
+              <div className="relative bg-white w-full max-w-md h-full shadow-2xl flex flex-col z-10 p-6">
+                <div className="flex items-center justify-between pb-4 border-b border-stone-200">
+                  <div className="flex items-center gap-2">
+                    <i data-lucide="shopping-bag" className="w-5 h-5 text-[#2a1d15]"></i>
+                    <h3 className="font-extrabold text-lg text-[#2a1d15]">Sua Sacola ({totalItems})</h3>
+                  </div>
+                  <button onClick={() => setIsCartOpen(false)} className="text-stone-400 hover:text-stone-700">
+                    <i data-lucide="x" className="w-6 h-6"></i>
+                  </button>
+                </div>
+
+                <div className="flex-1 overflow-y-auto py-4 space-y-4">
+                  {cart.length === 0 ? (
+                    <div className="text-center py-12 text-stone-400 space-y-3">
+                      <i data-lucide="shopping-bag" className="w-12 h-12 mx-auto stroke-1"></i>
+                      <p className="text-sm font-semibold">Sua sacola está vazia</p>
+                    </div>
+                  ) : (
+                    cart.map(item => (
+                      <div key={item.id} className="flex gap-3 bg-stone-50 p-3 rounded-2xl border border-stone-200">
+                        <img src={item.product.image} className="w-16 h-16 object-cover rounded-xl" />
+                        <div className="flex-1 min-w-0">
+                          <h4 className="font-bold text-sm text-[#2a1d15]">{item.product.name}</h4>
+                          <span className="text-xs text-[#8b6f52] font-semibold block">{item.weight}</span>
+                          <span className="text-xs font-extrabold text-[#2a1d15] block mt-1">
+                            R$ {(item.unitPrice * item.quantity).toFixed(2).replace('.', ',')}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button onClick={() => handleUpdateQty(item.id, -1)} className="w-7 h-7 rounded-lg bg-white border border-stone-200 flex items-center justify-center font-bold text-xs">-</button>
+                          <span className="text-xs font-black">{item.quantity}</span>
+                          <button onClick={() => handleUpdateQty(item.id, 1)} className="w-7 h-7 rounded-lg bg-white border border-stone-200 flex items-center justify-center font-bold text-xs">+</button>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+
+                {cart.length > 0 && (
+                  <div className="pt-4 border-t border-stone-200 space-y-3">
+                    <div className="flex justify-between text-xs text-stone-500">
+                      <span>Subtotal:</span>
+                      <span className="font-bold text-[#2a1d15]">R$ {subtotal.toFixed(2).replace('.', ',')}</span>
+                    </div>
+
+                    {shippingSelected && (
+                      <div className="flex justify-between text-xs text-emerald-700 font-semibold">
+                        <span>Frete ({shippingSelected.carrier}):</span>
+                        <span>R$ {shippingSelected.price.toFixed(2).replace('.', ',')}</span>
+                      </div>
+                    )}
+
+                    <div className="flex justify-between text-base font-black text-[#2a1d15] pt-1">
+                      <span>Total:</span>
+                      <span>R$ {totalCart.toFixed(2).replace('.', ',')}</span>
+                    </div>
+
+                    <a
+                      href={whatsappCheckoutUrl}
+                      target="_blank"
+                      className="w-full inline-flex items-center justify-center gap-2 bg-[#2a1d15] hover:bg-[#1c291c] text-white py-3.5 rounded-full font-bold text-xs shadow-md transition-all"
+                    >
+                      <i data-lucide="message-circle" className="w-4 h-4 text-emerald-400"></i>
+                      <span>Finalizar Pedido pelo WhatsApp</span>
+                    </a>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* SIMULADOR DE FRETE MODAL */}
+          {isShippingOpen && (
+            <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+              <div className="bg-white rounded-3xl max-w-md w-full p-6 relative">
+                <button onClick={() => setIsShippingOpen(false)} className="absolute top-5 right-5 text-stone-400 hover:text-stone-700">
+                  <i data-lucide="x" className="w-6 h-6"></i>
+                </button>
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2">
+                    <i data-lucide="truck" className="w-5 h-5 text-[#8b6f52]"></i>
+                    <h3 className="font-extrabold text-lg text-[#2a1d15]">Simulador de Frete</h3>
+                  </div>
+                  <form onSubmit={handleSimulateShipping} className="space-y-3">
+                    <div>
+                      <label className="text-xs font-bold text-stone-600 block mb-1">Informe seu CEP:</label>
+                      <input
+                        type="text"
+                        placeholder="Ex: 38700-000"
+                        value={cep}
+                        onChange={(e) => setCep(e.target.value)}
+                        className="w-full px-4 py-2.5 rounded-xl border border-stone-300 text-sm focus:outline-none focus:border-[#2a1d15]"
+                      />
+                    </div>
+                    {shippingError && <p className="text-xs text-rose-600 font-bold">{shippingError}</p>}
+                    <button type="submit" className="w-full bg-[#2a1d15] text-white py-2.5 rounded-xl text-xs font-bold">
+                      Calcular Frete
+                    </button>
+                  </form>
+
+                  {shippingSelected && (
+                    <div className="bg-emerald-50 border border-emerald-200 p-3.5 rounded-2xl text-xs space-y-1">
+                      <p className="font-bold text-emerald-800">{shippingSelected.carrier}</p>
+                      <p className="text-stone-600">Prazo: {shippingSelected.days}</p>
+                      <p className="font-black text-emerald-900 text-sm">R$ {shippingSelected.price.toFixed(2).replace('.', ',')}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* AVISO TOAST FLUTUANTE */}
+          {toastMessage && (
+            <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-[#2a1d15] text-white px-5 py-3 rounded-2xl shadow-xl flex items-center gap-3 border border-stone-700">
+              <i data-lucide="check-circle" className="w-5 h-5 text-emerald-400"></i>
+              <span className="text-xs sm:text-sm font-semibold">{toastMessage}</span>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>
